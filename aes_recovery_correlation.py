@@ -29,3 +29,12 @@ def Correlation_Analysis(inputs, traces):
 
 
 
+if __name__ == "__main__":
+    # Load WS2.h5 dataset
+    file = h5py.File("WS2.h5")
+    dset = file["WS2"]
+    inputs = np.array(dset[:, 0:16], dtype="int")
+    traces = dset[:, 16:100016]
+    file.close()
+
+    Correlation_Analysis(inputs, traces)

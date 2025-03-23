@@ -254,18 +254,19 @@ def PCor(inputs, traces):
     # iterate over all the 256 values that a key byte can take
     trace_len = traces.shape[1]
     pcor_dist = np.zeros((256, trace_len))
-    for key_guess in range(256):
+    for key_candidate in range(256):
         # calculate the target
-        ark = AddRoundKey(inputs, key_guess)
+        ark = AddRoundKey(inputs, key_candidate)
         sb = SubBytes[ark]
         # apply a Hamming weight leakage model
-        #pred_leak = HW[sb]
-        pred_leak = getLSB(sb)
+        pred_leak = HW[sb]
+        # pred_leak = getLSB(sb)
         #pred_leak = HW[ark]
-        chunksize = 50
+        chunksize = 25000
         for chunk in range(0, trace_len, chunksize):
             cor = np.corrcoef(pred_leak.T, traces[:, chunk:chunk+chunksize], rowvar=False)
-            pcor_dist[key_guess, chunk:chunk+chunksize] = cor[0, 1:]
+            pcor_dist[key_candidate, chunk:chunk+chunksize] = cor[0, 1:]
+        print(f"Done key candidate {key_candidate}")
     return pcor_dist
 
 def mean_center_traces(traces):

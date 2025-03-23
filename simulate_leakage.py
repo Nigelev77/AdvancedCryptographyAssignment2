@@ -38,9 +38,13 @@ def attack_m_equals_mprime(power_trace):
             pred_leak[m_candidate, :] = dpa.HW[dpa.SubBytes[inputs ^ m_candidate]]
 
     pcor_correlation = dpa.compute_correlation(pred_leak.T, power_trace) # (256, 6)
-    most_likely_candidate = np.argsort(np.max(np.absolute(pcor_correlation), axis=1))[-1]
-    print(f"Most Likely candidate for m is {most_likely_candidate}")
-#attack_m_equals_mprime(power_trace_m)
+    candidate_ranking = np.argsort(np.max(np.absolute(pcor_correlation), axis=1))[::-1]
+    for i in range(5):
+        print(f"Candidate for m ranked {i+1} is {candidate_ranking[i]}")
+
+print(f"[+] Setting m and m' to {m}")
+print(f"[+] Simulating power leakage and recovering m")
+attack_m_equals_mprime(power_trace_m)
 # find most likely m from correlation
 
 m = 9
@@ -67,14 +71,12 @@ def attack_m_nequals_mprime(power_trace):
     pcor_rankings = np.array(np.unravel_index(flattened_indices, max_correlations.shape)).T
 
     most_likely_m_prime, most_likely_m = pcor_rankings[0, :]
-    print(f"Top ranked pair using max correlation of m and mprime is: {most_likely_m}, {most_likely_m_prime}")
-
-
-
     max_indices = np.unravel_index(combined_correlation.argmax(), combined_correlation.shape)
-    print(f"Top ranked pair using aggregate correlation of m and mprime is: {max_indices[1]} and {max_indices[0]}")
+    print(f"Top ranked pair using max correlation of m and mprime is: {most_likely_m} and {most_likely_m_prime} whereas top ranked pair using aggregate correlation is: {max_indices[1]} and {max_indices[0]}")
     # predict mprime
 
+print(f"[+] Setting m to {m} and m' to {mprime}")
+print(f"[+] Simulating power leakage 20 times and calculating top candidates")
 for i in range(20):
     Sm_2, power_trace_mprime = leak_values(dpa.SubBytes, m, mprime)
     attack_m_nequals_mprime(power_trace_mprime)

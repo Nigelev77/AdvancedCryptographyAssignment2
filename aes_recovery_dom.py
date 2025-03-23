@@ -21,3 +21,14 @@ def DoM_Analysis(inputs, traces):
     print(f"Most likely key byte values are {" ".join(dom_rankings[:, 0].astype(str))}")
     most_likely_key = "".join(f"{b:02x}" for b in dom_rankings[:, 0])
     print(f"As a hex string that is: 0x{most_likely_key}")
+
+
+if __name__ == "__main__":
+    # Load WS2.h5 dataset
+    file = h5py.File("WS2.h5")
+    dset = file["WS2"]
+    inputs = np.array(dset[:, 0:16], dtype="int")
+    traces = dset[:, 16:100016]
+    file.close()
+
+    DoM_Analysis(inputs, traces)
