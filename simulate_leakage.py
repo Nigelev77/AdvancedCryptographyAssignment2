@@ -6,7 +6,8 @@ s = 0.1
 mu = 0
 sigma = s
 
-
+# Resulting power trace is (256, 6). Each input (key byte for S box) generates 6 time points
+# The target for second task is time point 2
 def leak_values(S, m, mprime):
     Sm = np.zeros((S.shape[0]))
     power_trace = np.zeros((256, 6))
@@ -23,25 +24,60 @@ def leak_values(S, m, mprime):
 
 m = 42
 mprime = m
-Sm_1, power_trace_m = leak_values(dpa.SubBytes, m, mprime)
+Sm_1, power_trace_m = leak_values(dpa.SubBytes, m, mprime) #power trace is (256, 6) 1 input is a key byte calculation in the table
 
 # attempt DPA using candidate m values where m == m', since m is just a byte
+# We need to predict, for each input, what the target is. Our prediction is just the HW of m
 
-pred_leaks = np.zeros((256, 256, 6))
-pcor_dist = np.zeros((256, 256 * 6))
-for key_byte in range(256):
-    pred_leak = leak_values(dpa.SubBytes, m, mprime)
-    pcor_dist[key_byte] = np.corrcoef(pred_leak.T, power_trace_m, rowvar=False)[0, 1:]
+def attack_m_equals_mprime(power_trace):
+    pred_leak = np.zeros((256,256))
+    inputs = np.arange(256)
+    # We need to iterate over all 256 possible values of m
+    # And the predicted leakage needs to do 256 bytes from the table
+    for m_candidate in range(256):
+            pred_leak[m_candidate, :] = dpa.HW[dpa.SubBytes[inputs ^ m_candidate]]
 
-
+    pcor_correlation = dpa.compute_correlation(pred_leak.T, power_trace) # (256, 6)
+    most_likely_candidate = np.argsort(np.max(np.absolute(pcor_correlation), axis=1))[-1]
+    print(f"Most Likely candidate for m is {most_likely_candidate}")
+#attack_m_equals_mprime(power_trace_m)
 # find most likely m from correlation
 
-key_ind_m = np.unravel_index(np.argmax(np.absolute(pcor_dist)), pcor_dist.shape)
-print(f"[+] Highest correlation occurs for mask byte {key_ind_m[0]} whereas the actual mask is {m}")
-
+m = 9
+mprime = 80
+Sm_2, power_trace_mprime = leak_values(dpa.SubBytes, m, mprime)
 
 # attempt DPA using candidate m and m' values where m != m'
+def attack_m_nequals_mprime(power_trace):
+    inputs = np.arange(256)
 
-m = 21
-mprime = 71
-Sm_2, power_trace_mprime = leak_values(dpa.SubBytes, m, mprime)
+    # predict m
+    pred_leak = np.zeros((256, 256, 256))
+    pcor_correlation = np.zeros((256, 256, 6))
+    combined_correlation = np.zeros((256, 256))
+    for m_prime_candidate in range(256):
+        for m_candidate in range(256):
+            pred_leak[m_prime_candidate, m_candidate, :] = dpa.HW[dpa.SubBytes[inputs ^ m_candidate] ^ m_prime_candidate]
+        pcor_correlation[m_prime_candidate, :, :] = dpa.compute_correlation(pred_leak[m_prime_candidate, :, :], power_trace)
+        combined_correlation[m_prime_candidate, :] = np.mean(pcor_correlation[m_prime_candidate, :, :], axis=1)
+
+    # Compute the maximum value at each (x, y) coordinate across the 6 channels
+    max_correlations = np.max(pcor_correlation, axis=-1)  # shape (256, 256)
+    flattened_indices = np.argsort(max_correlations.flatten())[::-1]
+    pcor_rankings = np.array(np.unravel_index(flattened_indices, max_correlations.shape)).T
+
+    most_likely_m_prime, most_likely_m = pcor_rankings[0, :]
+    print(f"Top ranked pair using max correlation of m and mprime is: {most_likely_m}, {most_likely_m_prime}")
+
+
+
+    max_indices = np.unravel_index(combined_correlation.argmax(), combined_correlation.shape)
+    print(f"Top ranked pair using aggregate correlation of m and mprime is: {max_indices[1]} and {max_indices[0]}")
+    # predict mprime
+
+for i in range(20):
+    Sm_2, power_trace_mprime = leak_values(dpa.SubBytes, m, mprime)
+    attack_m_nequals_mprime(power_trace_mprime)
+
+
+# Calculate SNR
